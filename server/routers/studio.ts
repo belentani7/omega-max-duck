@@ -5,7 +5,9 @@ import {
   auditLogs,
   automations,
   automationRuns,
+  clientHistory,
   clients,
+  communications,
   contacts,
   invoices,
   opportunities,
@@ -27,11 +29,14 @@ import {
 import { getDb } from "../db";
 import { protectedProcedure, router } from "../_core/trpc";
 import { storagePut } from "../storage";
-import { isValidPvcUSphere, requiresPaymentApproval } from "../domain/guards";
+import { canAccessClientProject, canResolvePaymentRequest, isInternalRole, isValidPvcUSphere, requiresPaymentApproval } from "../domain/guards";
 import { runEventAutomations } from "../domain/automationEngine";
+import { createHeartbeatJob } from "../_core/heartbeat";
+import { COOKIE_NAME } from "../../shared/const";
+import { parse as parseCookie } from "cookie";
 
 const internalProcedure = protectedProcedure.use(async ({ ctx, next }) => {
-  if (ctx.user.role === "client") {
+  if (!isInternalRole(ctx.user.role)) {
     throw new TRPCError({ code: "FORBIDDEN", message: "Este módulo es solo para el equipo de Duck." });
   }
   return next({ ctx });
@@ -81,11 +86,11 @@ async function assertProjectAccess(user: { id: number; role: "owner" | "collabor
   if (user.role !== "client") return;
   const clientId = await clientIdForUser(user.id);
   const db = await dbOrThrow();
-  const project = await db.select({ id: projects.id }).from(projects).where(and(eq(projects.id, projectId), eq(projects.clientId, clientId ?? -1))).limit(1);
-  if (!project[0]) throw new TRPCError({ code: "FORBIDDEN", message: "No tienes acceso a este proyecto." });
+  const project = await db.select({ id: projects.id, clientId: projects.clientId }).from(projects).where(eq(projects.id, projectId)).limit(1);
+  if (!project[0] || !canAccessClientProject(user.role, project[0].clientId, clientId)) throw new TRPCError({ code: "FORBIDDEN", message: "No tienes acceso a este proyecto." });
 }
 
-const clientInput = z.object({
+export const clientInput = z.object({
   name: z.string().min(2).max(180),
   email: z.string().email(),
   phone: z.string().max(50).optional(),
@@ -97,7 +102,7 @@ const clientInput = z.object({
   notes: z.string().max(5000).optional(),
 });
 
-const projectInput = z.object({
+export const projectInput = z.object({
   clientId: z.number().int().positive(),
   name: z.string().min(2).max(220),
   service: z.string().min(2).max(120).default("music_production"),
@@ -148,6 +153,20 @@ export const studioRouter = router({
       const db = await dbOrThrow();
       const inserted = await db.insert(contacts).values(input);
       await logAudit({ actorId: ctx.user.id, actorRole: ctx.user.role, action: "contact.created", resource: "contact", resourceId: String(inserted[0].insertId) });
+      return { id: Number(inserted[0].insertId) };
+    }),
+    listContacts: internalProcedure.input(z.object({ clientId: z.number().int().positive().optional() }).optional()).query(async ({ input }) => {
+      const db = await dbOrThrow();
+      return input?.clientId ? db.select().from(contacts).where(eq(contacts.clientId, input.clientId)).orderBy(desc(contacts.createdAt)) : db.select().from(contacts).orderBy(desc(contacts.createdAt));
+    }),
+    listHistory: internalProcedure.input(z.object({ clientId: z.number().int().positive().optional() }).optional()).query(async ({ input }) => {
+      const db = await dbOrThrow();
+      return input?.clientId ? db.select().from(clientHistory).where(eq(clientHistory.clientId, input.clientId)).orderBy(desc(clientHistory.createdAt)) : db.select().from(clientHistory).orderBy(desc(clientHistory.createdAt));
+    }),
+    addHistory: internalProcedure.input(z.object({ clientId: z.number().int().positive(), event: z.string().min(2).max(120), detail: z.string().max(5000).optional() })).mutation(async ({ ctx, input }) => {
+      const db = await dbOrThrow();
+      const inserted = await db.insert(clientHistory).values({ ...input, actorId: ctx.user.id });
+      await logAudit({ actorId: ctx.user.id, actorRole: ctx.user.role, action: "client.history_added", resource: "client_history", resourceId: String(inserted[0].insertId), detail: input.event });
       return { id: Number(inserted[0].insertId) };
     }),
     listOpportunities: internalProcedure.query(async () => {
@@ -203,9 +222,20 @@ export const studioRouter = router({
       await logAudit({ actorId: ctx.user.id, actorRole: ctx.user.role, action: "task.created", resource: "task", resourceId: String(inserted[0].insertId), detail: input.title });
       return { id: Number(inserted[0].insertId) };
     }),
+    updateTaskStatus: internalProcedure.input(z.object({ taskId: z.number().int().positive(), status: z.enum(["todo", "in_progress", "blocked", "done"]) })).mutation(async ({ ctx, input }) => {
+      const db = await dbOrThrow();
+      await db.update(tasks).set({ status: input.status }).where(eq(tasks.id, input.taskId));
+      await logAudit({ actorId: ctx.user.id, actorRole: ctx.user.role, action: "task.status_changed", resource: "task", resourceId: String(input.taskId), detail: input.status });
+      return { success: true };
+    }),
   }),
 
   portal: router({
+    listCommunications: protectedProcedure.query(async ({ ctx }) => {
+      const db = await dbOrThrow();
+      if (ctx.user.role !== "client") return db.select().from(communications).orderBy(desc(communications.createdAt)).limit(80);
+      return db.select().from(communications).where(and(eq(communications.audience, "client"), eq(communications.recipientUserId, ctx.user.id))).orderBy(desc(communications.createdAt)).limit(80);
+    }),
     projectDetail: protectedProcedure.input(z.object({ projectId: z.number().int().positive() })).query(async ({ ctx, input }) => {
       await assertProjectAccess(ctx.user, input.projectId);
       const db = await dbOrThrow();
@@ -226,6 +256,16 @@ export const studioRouter = router({
       const inserted = await db.insert(projectVersions).values({ ...input, createdById: ctx.user.id });
       await logAudit({ actorId: ctx.user.id, actorRole: ctx.user.role, action: "version.created", resource: "version", resourceId: String(inserted[0].insertId), detail: input.name });
       return { id: Number(inserted[0].insertId) };
+    }),
+    approveVersion: protectedProcedure.input(z.object({ versionId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+      const db = await dbOrThrow();
+      const [version] = await db.select().from(projectVersions).where(eq(projectVersions.id, input.versionId)).limit(1);
+      if (!version) throw new TRPCError({ code: "NOT_FOUND", message: "Versión no encontrada." });
+      await assertProjectAccess(ctx.user, version.projectId);
+      await db.update(projectVersions).set({ status: "approved" }).where(eq(projectVersions.id, input.versionId));
+      await logAudit({ actorId: ctx.user.id, actorRole: ctx.user.role, action: "version.approved", resource: "version", resourceId: String(input.versionId) });
+      await runEventAutomations("version_approved", { projectId: version.projectId });
+      return { success: true };
     }),
     commentVersion: protectedProcedure.input(z.object({ versionId: z.number().int().positive(), body: z.string().min(1).max(5000), timestampSeconds: z.string().regex(/^\d+(\.\d{1,3})?$/).optional() })).mutation(async ({ ctx, input }) => {
       const db = await dbOrThrow();
@@ -294,6 +334,24 @@ export const studioRouter = router({
       await logAudit({ actorId: ctx.user.id, actorRole: ctx.user.role, action: "plugin.created", resource: "plugin", resourceId: String(inserted[0].insertId), detail: input.name });
       return { id: Number(inserted[0].insertId) };
     }),
+    createTrack: internalProcedure.input(z.object({ projectId: z.number().int().positive(), name: z.string().min(2).max(220), type: z.enum(["stem", "vocal", "instrumental", "reference", "master"]).default("stem") })).mutation(async ({ ctx, input }) => {
+      const db = await dbOrThrow();
+      const inserted = await db.insert(tracks).values(input);
+      await logAudit({ actorId: ctx.user.id, actorRole: ctx.user.role, action: "track.created", resource: "track", resourceId: String(inserted[0].insertId), detail: input.name });
+      return { id: Number(inserted[0].insertId) };
+    }),
+    createQcItem: internalProcedure.input(z.object({ projectId: z.number().int().positive(), label: z.string().min(2).max(255), category: z.string().max(40).default("general") })).mutation(async ({ ctx, input }) => {
+      const db = await dbOrThrow();
+      const inserted = await db.insert(qcItems).values(input);
+      await logAudit({ actorId: ctx.user.id, actorRole: ctx.user.role, action: "qc.created", resource: "qc_item", resourceId: String(inserted[0].insertId), detail: input.label });
+      return { id: Number(inserted[0].insertId) };
+    }),
+    toggleQcItem: internalProcedure.input(z.object({ qcItemId: z.number().int().positive(), checked: z.boolean() })).mutation(async ({ ctx, input }) => {
+      const db = await dbOrThrow();
+      await db.update(qcItems).set({ checked: input.checked }).where(eq(qcItems.id, input.qcItemId));
+      await logAudit({ actorId: ctx.user.id, actorRole: ctx.user.role, action: "qc.updated", resource: "qc_item", resourceId: String(input.qcItemId), detail: input.checked ? "completed" : "open" });
+      return { success: true };
+    }),
   }),
 
   finance: router({
@@ -302,6 +360,7 @@ export const studioRouter = router({
       const db = await dbOrThrow();
       const inserted = await db.insert(invoices).values({ ...input, status: "draft" });
       await logAudit({ actorId: ctx.user.id, actorRole: ctx.user.role, action: "invoice.created", resource: "invoice", resourceId: String(inserted[0].insertId), detail: input.number });
+      await runEventAutomations("invoice_ready", { projectId: input.projectId });
       return { id: Number(inserted[0].insertId), status: "draft" as const };
     }),
     listPaymentRequests: internalProcedure.query(async () => (await dbOrThrow()).select().from(paymentRequests).orderBy(desc(paymentRequests.createdAt))),
@@ -316,7 +375,7 @@ export const studioRouter = router({
       const db = await dbOrThrow();
       const [request] = await db.select().from(paymentRequests).where(eq(paymentRequests.id, input.paymentRequestId)).limit(1);
       if (!request) throw new TRPCError({ code: "NOT_FOUND", message: "Solicitud no encontrada." });
-      if (request.status !== "pending_approval") throw new TRPCError({ code: "CONFLICT", message: "La solicitud ya fue resuelta." });
+      if (!canResolvePaymentRequest(ctx.user.role, request.status)) throw new TRPCError({ code: "CONFLICT", message: "La solicitud ya fue resuelta." });
       await db.update(paymentRequests).set({ status: input.decision, approvedById: ctx.user.id, approvedAt: new Date(), decisionReason: input.reason }).where(eq(paymentRequests.id, input.paymentRequestId));
       await logAudit({ actorId: ctx.user.id, actorRole: ctx.user.role, action: `payment_request.${input.decision}`, resource: "payment_request", resourceId: String(input.paymentRequestId), detail: input.reason });
       return { success: true, status: input.decision };
@@ -337,6 +396,17 @@ export const studioRouter = router({
       await db.update(automations).set({ enabled: input.enabled }).where(eq(automations.id, input.automationId));
       await logAudit({ actorId: ctx.user.id, actorRole: ctx.user.role, action: input.enabled ? "automation.resumed" : "automation.paused", resource: "automation", resourceId: String(input.automationId) });
       return { success: true };
+    }),
+    scheduleOverdueCheck: ownerProcedure.input(z.object({ automationId: z.number().int().positive(), cron: z.string().regex(/^\d+\s+\d+\s+\d+\s+\*\s+\*\s+\*$/, "Usa cron UTC de seis campos: segundo minuto hora * * *") })).mutation(async ({ ctx, input }) => {
+      const db = await dbOrThrow();
+      const [automation] = await db.select().from(automations).where(eq(automations.id, input.automationId)).limit(1);
+      if (!automation || automation.trigger !== "task_overdue") throw new TRPCError({ code: "BAD_REQUEST", message: "Selecciona una automatización de tareas vencidas." });
+      if (automation.scheduleCronTaskUid) throw new TRPCError({ code: "CONFLICT", message: "Esta automatización ya tiene un trabajo programado." });
+      const sessionToken = parseCookie(ctx.req.headers.cookie ?? "")[COOKIE_NAME] ?? "";
+      const job = await createHeartbeatJob({ name: `duck-overdue-${automation.id}`, cron: input.cron, path: "/api/scheduled/task-overdue", payload: { automationId: automation.id }, description: `Vencimientos para la regla ${automation.name}` }, sessionToken);
+      await db.update(automations).set({ scheduleCronTaskUid: job.taskUid }).where(eq(automations.id, automation.id));
+      await logAudit({ actorId: ctx.user.id, actorRole: ctx.user.role, action: "automation.scheduled", resource: "automation", resourceId: String(automation.id), detail: `Cron ${input.cron} UTC` });
+      return { taskUid: job.taskUid, nextExecutionAt: job.nextExecutionAt };
     }),
     listRuns: internalProcedure.query(async () => (await dbOrThrow()).select().from(automationRuns).orderBy(desc(automationRuns.createdAt)).limit(100)),
   }),

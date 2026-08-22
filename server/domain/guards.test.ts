@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isValidPvcUSphere, requiresPaymentApproval } from "./guards";
+import { canAccessClientProject, canResolvePaymentRequest, isInternalRole, isValidPvcUSphere, requiresPaymentApproval } from "./guards";
 
 describe("reglas de gobernanza de Duck Ω-MAX", () => {
   it("acepta únicamente las esferas PVC-U 1 a 7 con stock no negativo", () => {
@@ -15,5 +15,22 @@ describe("reglas de gobernanza de Duck Ω-MAX", () => {
     expect(requiresPaymentApproval("send_payment")).toBe(true);
     expect(requiresPaymentApproval("execute_charge")).toBe(true);
     expect(requiresPaymentApproval("create_task")).toBe(false);
+  });
+
+  it("separa permisos de equipo, clientes y decisiones de pago", () => {
+    expect(isInternalRole("owner")).toBe(true);
+    expect(isInternalRole("collaborator")).toBe(true);
+    expect(isInternalRole("client")).toBe(false);
+    expect(canResolvePaymentRequest("owner", "pending_approval")).toBe(true);
+    expect(canResolvePaymentRequest("collaborator", "pending_approval")).toBe(false);
+    expect(canResolvePaymentRequest("owner", "approved")).toBe(false);
+  });
+
+  it("limita el proyecto de portal al cliente asignado", () => {
+    expect(canAccessClientProject("owner", 4, null)).toBe(true);
+    expect(canAccessClientProject("collaborator", 4, null)).toBe(true);
+    expect(canAccessClientProject("client", 4, 4)).toBe(true);
+    expect(canAccessClientProject("client", 4, 7)).toBe(false);
+    expect(canAccessClientProject("client", 4, null)).toBe(false);
   });
 });

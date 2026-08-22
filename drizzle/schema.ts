@@ -271,6 +271,18 @@ export const automationRuns = mysqlTable("automation_runs", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
+export const communications = mysqlTable("communications", {
+  id: int("id").autoincrement().primaryKey(),
+  projectId: int("projectId").references(() => projects.id, { onDelete: "set null" }),
+  recipientUserId: int("recipientUserId").references(() => users.id, { onDelete: "set null" }),
+  audience: varchar("audience", { length: 24 }).notNull(),
+  channel: varchar("channel", { length: 24 }).notNull().default("in_app"),
+  title: varchar("title", { length: 255 }).notNull(),
+  body: text("body").notNull(),
+  readAt: timestamp("readAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, table => [index("communications_recipient_idx").on(table.recipientUserId), index("communications_project_idx").on(table.projectId)]);
+
 export const products = mysqlTable("products", {
   id: int("id").autoincrement().primaryKey(),
   sku: varchar("sku", { length: 80 }).notNull().unique(),

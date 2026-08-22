@@ -9,16 +9,17 @@
 - [x] Diseñar y migrar el módulo de inventario: productos, validaciones PVC-U, eventos de stock y propuestas de reposición auditables.
 - [x] Construir una web pública de Duck con propuesta de valor, servicios, casos verificables aportados por el equipo, contacto y acceso al portal.
 - [x] Construir el dashboard interno con navegación por CRM, proyectos, producción, inventario, finanzas, automatizaciones y auditoría.
-- [ ] Construir CRM operativo para crear y consultar clientes, contactos, historial, oportunidades, presupuestos y tareas.
+- [x] Construir CRM operativo para crear y consultar clientes, contactos, historial, oportunidades, presupuestos y tareas.
 - [x] Construir portal de clientes protegido con visualización de proyectos, carga de archivos, revisiones, comentarios temporales y entregables autorizados.
-- [ ] Construir herramientas de producción para tracks, versiones, QC, cadenas de procesamiento y catálogo de plugins.
-- [ ] Construir el flujo de facturas y solicitudes de pago sin ejecución automática de cargos.
+- [x] Construir herramientas de producción para tracks, versiones, QC, cadenas de procesamiento y catálogo de plugins.
+- [x] Construir el flujo de facturas y solicitudes de pago sin ejecución automática de cargos.
 - [x] Implementar la compuerta de aprobación explícita de Duck o Elika para crear, enviar o ejecutar cobros generados por automatizaciones.
-- [ ] Implementar automatizaciones configurables para eventos de proyecto, archivos, aprobaciones, vencimientos, recordatorios y comunicaciones.
+- [x] Implementar automatizaciones configurables para eventos de proyecto, archivos, aprobaciones, vencimientos, recordatorios y comunicaciones.
 - [x] Registrar actividad relevante, cambios de estado, decisiones de automatización y aprobaciones en una bitácora auditable.
-- [ ] Ampliar los estados de error visibles en las consultas y mutaciones de todas las vistas internas.
+- [x] Ampliar los estados de error visibles en las consultas y mutaciones de todas las vistas internas.
 - [x] Implementar validaciones de entrada, manejo de errores en contacto, estados de carga y controles de autorización en procedimientos y UI.
 - [x] Reutilizar de forma selectiva patrones y dominios de Duck Studio OS v2 sin copiar marca, datos de demostración ni identidad ajena.
-- [ ] Crear pruebas Vitest para permisos, CRM, proyectos, inventario, automatizaciones y compuerta de cobros.
+- [x] Crear pruebas Vitest para permisos, CRM, proyectos, inventario, automatizaciones y compuerta de cobros.
 - [x] Preparar documentación de arquitectura, migración, operación, despliegue y futuras integraciones que precisen credenciales o aprobación.
-- [ ] Crear un repositorio privado nuevo para el código exclusivo de Duck/Lucas y preparar la entrega publicable de la plataforma.
+- [x] Crear y publicar el repositorio privado `belentani7/omega-max-duck` para el código exclusivo de Duck/Lucas.
+- [x] Ejecutar la revisión final de entrega publicable tras completar los módulos, pruebas y checklist de publicación pendientes.

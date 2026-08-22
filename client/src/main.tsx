@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { httpBatchLink, TRPCClientError } from "@trpc/client";
 import { createRoot } from "react-dom/client";
 import superjson from "superjson";
+import { toast } from "sonner";
 import App from "./App";
 import { startLogin } from "./const";
 import "./index.css";
@@ -21,10 +22,17 @@ const redirectToLoginIfUnauthorized = (error: unknown) => {
   startLogin();
 };
 
+const showRequestError = (error: unknown) => {
+  if (error instanceof TRPCClientError && error.message === UNAUTHED_ERR_MSG) return;
+  const message = error instanceof Error && error.message ? error.message : "No se pudo completar la operación. Reinténtalo o revisa tu conexión.";
+  toast.error(message);
+};
+
 queryClient.getQueryCache().subscribe(event => {
   if (event.type === "updated" && event.action.type === "error") {
     const error = event.query.state.error;
     redirectToLoginIfUnauthorized(error);
+    showRequestError(error);
     console.error("[API Query Error]", error);
   }
 });
@@ -33,6 +41,7 @@ queryClient.getMutationCache().subscribe(event => {
   if (event.type === "updated" && event.action.type === "error") {
     const error = event.mutation.state.error;
     redirectToLoginIfUnauthorized(error);
+    showRequestError(error);
     console.error("[API Mutation Error]", error);
   }
 });

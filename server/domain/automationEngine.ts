@@ -1,6 +1,7 @@
 import { and, eq, sql } from "drizzle-orm";
-import { automationRuns, automations, paymentRequests, replenishmentProposals, tasks } from "../../drizzle/schema";
+import { automationRuns, automations, clients, communications, paymentRequests, projects, replenishmentProposals, tasks } from "../../drizzle/schema";
 import { getDb } from "../db";
+import { notifyOwner } from "../_core/notification";
 import { requiresPaymentApproval } from "./guards";
 
 type EventPayload = {
@@ -15,10 +16,12 @@ type ActionSpec = {
   requiresApproval?: boolean;
 };
 
-export async function runEventAutomations(trigger: string, payload: EventPayload) {
+export async function runEventAutomations(trigger: string, payload: EventPayload, onlyAutomationId?: number) {
   const db = await getDb();
   if (!db) return;
-  const rules = await db.select().from(automations).where(and(eq(automations.trigger, trigger), eq(automations.enabled, true)));
+  const criteria = [eq(automations.trigger, trigger), eq(automations.enabled, true)];
+  if (onlyAutomationId) criteria.push(eq(automations.id, onlyAutomationId));
+  const rules = await db.select().from(automations).where(and(...criteria));
 
   for (const rule of rules) {
     const action = rule.action as ActionSpec;
@@ -48,8 +51,24 @@ export async function runEventAutomations(trigger: string, payload: EventPayload
           detail = "Acción financiera detectada sin importe: ninguna solicitud ni cobro fue ejecutado.";
         }
         status = "awaiting_approval";
-      } else if (action.type === "notify_owner" || action.type === "notify_client") {
-        detail = `Notificación registrada para ${action.type === "notify_owner" ? "Duck/Elika" : "el cliente"}.`;
+      } else if (action.type === "notify_owner") {
+        const title = String(action.payload?.title || `Ω-MAX · ${rule.name}`);
+        const body = String(action.payload?.body || `La regla «${rule.name}» se activó por ${trigger}.`);
+        const delivered = await notifyOwner({ title, content: body });
+        await db.insert(communications).values({ projectId: payload.projectId, audience: "owner", channel: "in_app", title, body });
+        detail = delivered ? "Aviso enviado a Duck/Elika y registrado en la bitácora interna." : "Aviso interno registrado; el canal de propietario no estuvo disponible.";
+      } else if (action.type === "notify_client") {
+        if (!payload.projectId) {
+          status = "skipped";
+          detail = "No hay proyecto asociado para identificar al cliente destinatario.";
+        } else {
+          const [project] = await db.select({ clientId: projects.clientId }).from(projects).where(eq(projects.id, payload.projectId)).limit(1);
+          const [client] = project ? await db.select({ portalUserId: clients.portalUserId }).from(clients).where(eq(clients.id, project.clientId)).limit(1) : [];
+          const title = String(action.payload?.title || `Actualización de proyecto`);
+          const body = String(action.payload?.body || `Hay una actualización disponible en tu proyecto dentro de Duck Ω-MAX.`);
+          await db.insert(communications).values({ projectId: payload.projectId, recipientUserId: client?.portalUserId ?? null, audience: "client", channel: "in_app", title, body });
+          detail = "Mensaje interno registrado para el portal del cliente.";
+        }
       } else {
         status = "skipped";
         detail = "La regla no tiene datos suficientes para ejecutar una acción segura.";
