@@ -21,15 +21,21 @@ import {
 } from "@/components/ui/sidebar";
 import { startLogin } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users } from "lucide-react";
+import { Archive, Boxes, CircleDollarSign, ClipboardList, Gauge, LogOut, PanelLeft, Radio, Sparkles, Users, Zap } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
 
 const menuItems = [
-  { icon: LayoutDashboard, label: "Page 1", path: "/" },
-  { icon: Users, label: "Page 2", path: "/some-path" },
+  { icon: Gauge, label: "Resumen", path: "/studio" },
+  { icon: Users, label: "CRM", path: "/studio/crm" },
+  { icon: ClipboardList, label: "Proyectos", path: "/studio/projects" },
+  { icon: Radio, label: "Producción", path: "/studio/production" },
+  { icon: CircleDollarSign, label: "Finanzas", path: "/studio/finance" },
+  { icon: Boxes, label: "Inventario", path: "/studio/inventory" },
+  { icon: Zap, label: "Automatizaciones", path: "/studio/automations" },
+  { icon: Archive, label: "Auditoría", path: "/studio/audit" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
@@ -168,8 +174,8 @@ function DashboardLayoutContent({
               </button>
               {!isCollapsed ? (
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className="font-semibold tracking-tight truncate">
-                    Navigation
+                    <span className="font-semibold tracking-[0.16em] text-xs truncate">
+                    DUCK Ω-MAX
                   </span>
                 </div>
               ) : null}
@@ -210,10 +216,10 @@ function DashboardLayoutContent({
                   </Avatar>
                   <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
                     <p className="text-sm font-medium truncate leading-none">
-                      {user?.name || "-"}
+                      {user?.role === "owner" ? "Duck owner" : user?.role === "collaborator" ? "Colaborador Duck" : "Cliente Duck"}
                     </p>
                     <p className="text-xs text-muted-foreground truncate mt-1.5">
-                      {user?.email || "-"}
+                      Acceso protegido
                     </p>
                   </div>
                 </button>
@@ -246,16 +252,16 @@ function DashboardLayoutContent({
             <div className="flex items-center gap-2">
               <SidebarTrigger className="h-9 w-9 rounded-lg bg-background" />
               <div className="flex items-center gap-3">
-                <div className="flex flex-col gap-1">
+              <div className="flex flex-col gap-1">
                   <span className="tracking-tight text-foreground">
-                    {activeMenuItem?.label ?? "Menu"}
+                    {activeMenuItem?.label ?? "DUCK Ω-MAX"}
                   </span>
                 </div>
               </div>
             </div>
           </div>
         )}
-        <main className="flex-1 p-4">{children}</main>
+        <main className="flex-1 p-4 md:p-6">{children}</main>
       </SidebarInset>
     </>
   );
