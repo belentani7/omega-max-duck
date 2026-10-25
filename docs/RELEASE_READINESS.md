@@ -1,6 +1,6 @@
 # Release readiness — Duck Ω-MAX
 
-**Estado de esta revisión:** preparada para checkpoint y publicación manual. La validación es **pre-publicación**; no se ha publicado ni activado ninguna tarea programada desde el entorno de desarrollo.
+**Estado histórico (no revalidado):** las marcas «Aprobado» de la tabla proceden de una revisión anterior. **No equivalen a pruebas verificadas de la rama actual ni autorizan publicar.** Esta revisión del 25/10/2026 mantiene el release bloqueado.
 
 | Control | Resultado | Evidencia |
 |---|---|---|
@@ -16,7 +16,9 @@
 
 ## Bloqueadores
 
-No hay bloqueadores de código, tipos, pruebas o esquema para crear el checkpoint. La publicación y cualquier configuración de recordatorios recurrentes requieren una acción posterior de Duck/Elika: usar **Publish** y, solo después, crear reglas de vencimiento desde Automatizaciones.
+**Bloqueo actual:** la CI de la rama de trabajo termina antes de ejecutar pasos (sin runner verificable). Falta repetir `pnpm install --frozen-lockfile`, `pnpm check`, `pnpm test`, `pnpm build`, E2E autenticado y anónimo, escáneres, revisión de permisos, datos y licencias, y cotejar el SHA del despliegue autorizado. No usar **Publish** ni habilitar recordatorios hasta completar estos controles. La copia Git/LFS/metadatos, el respaldo cifrado offsite y su restauración tampoco se han verificado.
+
+La landing ya no muestra créditos de colaboraciones sin fuente/licencia comprobadas. `LICENSE` atribuye copyright del código a Pedro Belentani, mientras `README.md` define el producto como exclusivo de Duck/Lucas: **la titularidad y derechos de explotación de la marca, activos y colaboraciones siguen sin verificarse**. El formulario de contacto preserva el borrador cuando falla el envío; la telemetría de terceros por plantilla se ha retirado. La privacidad de la base de datos y del historial Git aún requiere revisión.
 
 ## Controles posteriores a la publicación
 
