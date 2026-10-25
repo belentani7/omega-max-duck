@@ -90,19 +90,19 @@ export default function Home() {
         <section id="contacto" className="mx-auto grid max-w-7xl gap-10 px-5 py-24 lg:grid-cols-[.9fr_1.1fr] lg:px-8"><div><p className="text-xs font-bold tracking-[0.19em] text-[#e69763]">CONTACTO DIRECTO</p><h2 className="display-face mt-4 text-5xl font-semibold leading-none">Hablemos de la siguiente producción.</h2><p className="mt-5 max-w-md text-sm leading-7 text-[#cbb5a5]">Comparte el objetivo, formato y momento del proyecto. El mensaje se registra únicamente en el sistema de Duck.</p></div><Card className="border-[#6a483c] bg-[#251814] text-[#fff7ec]"><CardContent className="p-6 sm:p-8"><form ref={formRef} className="grid gap-4" onSubmit={submit} onInput={() => setFormSuccess(false)} aria-label="Solicitud de contacto" aria-busy={contact.isPending}>
   <div className="grid gap-1.5">
     <label htmlFor="duck-contact-name" className="text-sm font-medium">Nombre</label>
-    <Input id="duck-contact-name" className="border-[#6a483c] bg-[#1a110e] text-white placeholder:text-[#927365]" name="name" autoComplete="name" placeholder="Tu nombre" minLength={2} maxLength={180} required />
+    <Input id="duck-contact-name" className="border-[#6a483c] bg-[#1a110e] text-white placeholder:text-[#927365]" name="name" autoComplete="name" placeholder="Tu nombre" minLength={2} maxLength={180} required disabled={contact.isPending} />
   </div>
   <div className="grid gap-1.5">
     <label htmlFor="duck-contact-email" className="text-sm font-medium">Correo electrónico</label>
-    <Input id="duck-contact-email" className="border-[#6a483c] bg-[#1a110e] text-white placeholder:text-[#927365]" name="email" autoComplete="email" type="email" placeholder="Email" required />
+    <Input id="duck-contact-email" className="border-[#6a483c] bg-[#1a110e] text-white placeholder:text-[#927365]" name="email" autoComplete="email" type="email" placeholder="Email" required disabled={contact.isPending} />
   </div>
   <div className="grid gap-1.5">
     <label htmlFor="duck-contact-service" className="text-sm font-medium">Servicio (opcional)</label>
-    <Input id="duck-contact-service" className="border-[#6a483c] bg-[#1a110e] text-white placeholder:text-[#927365]" name="service" maxLength={120} placeholder="Servicio o tipo de proyecto" />
+    <Input id="duck-contact-service" className="border-[#6a483c] bg-[#1a110e] text-white placeholder:text-[#927365]" name="service" maxLength={120} placeholder="Servicio o tipo de proyecto" disabled={contact.isPending} />
   </div>
   <div className="grid gap-1.5">
     <label htmlFor="duck-contact-message" className="text-sm font-medium">Mensaje</label>
-    <Textarea id="duck-contact-message" className="min-h-32 border-[#6a483c] bg-[#1a110e] text-white placeholder:text-[#927365]" name="message" placeholder="Cuéntale a Duck qué necesitas." minLength={10} maxLength={5000} required />
+    <Textarea id="duck-contact-message" className="min-h-32 border-[#6a483c] bg-[#1a110e] text-white placeholder:text-[#927365]" name="message" placeholder="Cuéntale a Duck qué necesitas." minLength={10} maxLength={5000} required disabled={contact.isPending} />
   </div>
   {formError ? <p className="rounded-lg border border-red-400/40 bg-red-950/30 p-3 text-sm text-red-200" role="alert">{formError}</p> : null}
   {formSuccess ? <p className="rounded-lg border border-green-400/40 bg-green-950/30 p-3 text-sm text-green-100" role="status">Tu mensaje se ha registrado correctamente.</p> : null}
