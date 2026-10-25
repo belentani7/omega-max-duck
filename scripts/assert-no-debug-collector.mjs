@@ -18,4 +18,12 @@ if (html.includes("/__manus__/debug-collector.js")) {
   throw new Error("Production HTML must not reference the Manus debug collector.");
 }
 
+if (html.includes("%VITE_ANALYTICS_") || html.includes("/umami")) {
+  throw new Error("Production HTML must not contain unapproved analytics or unresolved placeholders.");
+}
+
+if (html.includes("maximum-scale") || html.includes("user-scalable=no")) {
+  throw new Error("Production viewport must not prevent user zoom.");
+}
+
 console.log("Production privacy check passed.");
