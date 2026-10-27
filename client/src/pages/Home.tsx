@@ -3,8 +3,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
+import { readContactPayload } from "@/lib/contactForm";
 import { ArrowRight, Disc3, LockKeyhole, RadioTower, ShieldCheck, Sparkles } from "lucide-react";
-import { FormEvent, useState } from "react";
+import { FormEvent, useRef, useState } from "react";
 import { Link } from "wouter";
 import { toast } from "sonner";
 
@@ -20,22 +21,20 @@ const services = [
   { number: "03", title: "Entrega organizada", copy: "Archivos y entregables autorizados desde un portal privado." },
 ];
 
-const cases = [
-  "Therapist — Belentani · Prod. Duck",
-  "Baila comigo — Belentani · Prod. Duck",
-  "Heart Breaking — Duck feat. Belentani",
-  "I Wrote a Song — Belentani · Prod. Duck",
-];
-
 export default function Home() {
   const [formError, setFormError] = useState<string | null>(null);
+  const [formSuccess, setFormSuccess] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
   const contact = trpc.public.contact.useMutation({
     onSuccess: () => {
+      formRef.current?.reset();
       setFormError(null);
-      toast.success("Mensaje recibido. Duck responderá por el canal acordado.");
+      setFormSuccess(true);
+      toast.success("Mensaje registrado correctamente.");
     },
     onError: error => {
       const message = error.message || "No se pudo enviar el mensaje. Inténtalo de nuevo.";
+      setFormSuccess(false);
       setFormError(message);
       toast.error(message);
     },
@@ -43,15 +42,11 @@ export default function Home() {
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (contact.isPending) return;
     setFormError(null);
-    const data = new FormData(event.currentTarget);
-    contact.mutate({
-      name: String(data.get("name")),
-      email: String(data.get("email")),
-      service: String(data.get("service") || "") || undefined,
-      message: String(data.get("message")),
-    });
-    event.currentTarget.reset();
+    setFormSuccess(false);
+    contact.mutate(readContactPayload(new FormData(event.currentTarget)));
+    // Do not clear a user's message until the server confirms it was saved.
   };
 
   return (
@@ -63,18 +58,18 @@ export default function Home() {
           <Link href="/" className="text-xs font-extrabold tracking-[0.22em]">DUCK / Ω-MAX</Link>
           <div className="flex items-center gap-4">
             <a className="hidden text-sm text-[#ead8c8] transition hover:text-white sm:block" href="#contacto">Contacto</a>
-            <Link href="/studio"><Button size="sm" className="rounded-full bg-[#e69763] text-[#2a1610] hover:bg-[#f1ad81]">Portal</Button></Link>
+            <Button asChild size="sm" className="rounded-full bg-[#e69763] text-[#2a1610] hover:bg-[#f1ad81]"><Link href="/studio">Portal</Link></Button>
           </div>
         </nav>
 
         <section className="mx-auto grid min-h-[70vh] max-w-7xl items-center gap-12 px-5 pb-20 pt-12 lg:grid-cols-[1.35fr_.65fr] lg:px-8">
           <div>
             <p className="mb-5 flex items-center gap-2 text-xs font-bold tracking-[0.19em] text-[#e69763]"><Sparkles className="h-4 w-4" /> PRODUCCIÓN / DIRECCIÓN SONORA / STUDIO OS</p>
-            <h1 className="display-face max-w-4xl text-6xl font-semibold leading-[0.88] tracking-tight sm:text-7xl lg:text-8xl">El sonido necesita un <span className="text-[#e69763]">sistema.</span></h1>
+            <h1 className="display-face max-w-4xl text-5xl font-semibold leading-[0.95] tracking-tight sm:text-7xl lg:text-8xl">El sonido necesita un <span className="text-[#e69763]">sistema.</span></h1>
             <p className="mt-7 max-w-xl text-base leading-7 text-[#d8c5b5]">Duck convierte intención, voz y dirección artística en procesos de producción claros: proyecto, revisión, entrega y relación directa con cada cliente.</p>
             <div className="mt-9 flex flex-wrap gap-3">
-              <a href="#contacto"><Button size="lg" className="rounded-full bg-[#e69763] px-6 text-[#29150f] hover:bg-[#f1ad81]">Iniciar una conversación <ArrowRight className="ml-2 h-4 w-4" /></Button></a>
-              <Link href="/studio"><Button size="lg" variant="outline" className="rounded-full border-[#765547] bg-transparent px-6 text-[#fff7ec] hover:bg-[#2b1d18] hover:text-white">Acceso al portal</Button></Link>
+              <Button asChild size="lg" className="rounded-full bg-[#e69763] px-6 text-[#29150f] hover:bg-[#f1ad81]"><a href="#contacto">Iniciar una conversación <ArrowRight className="ml-2 h-4 w-4" /></a></Button>
+              <Button asChild size="lg" variant="outline" className="rounded-full border-[#765547] bg-transparent px-6 text-[#fff7ec] hover:bg-[#2b1d18] hover:text-white"><Link href="/studio">Acceso al portal</Link></Button>
             </div>
           </div>
           <div className="relative">
@@ -91,9 +86,28 @@ export default function Home() {
 
         <section className="mx-auto max-w-7xl px-5 py-24 lg:px-8"><div className="max-w-2xl"><p className="text-xs font-bold tracking-[0.19em] text-[#e69763]">SERVICIOS</p><h2 className="display-face mt-4 text-5xl font-semibold leading-none">Un proceso para cada decisión sonora.</h2></div><div className="mt-10 grid gap-4 md:grid-cols-3">{services.map(service => <div className="rounded-2xl border border-[#563c33] bg-[#211613] p-6" key={service.number}><p className="text-xs font-bold text-[#e69763]">{service.number}</p><h3 className="mt-6 text-xl font-semibold">{service.title}</h3><p className="mt-3 text-sm leading-6 text-[#cbb5a5]">{service.copy}</p></div>)}</div></section>
 
-        <section className="border-y border-[#563c33] bg-[#1d1411]"><div className="mx-auto max-w-7xl px-5 py-20 lg:px-8"><p className="text-xs font-bold tracking-[0.19em] text-[#e69763]">CASOS / COLABORACIONES</p><h2 className="display-face mt-4 text-5xl font-semibold">Producciones identificadas junto a Belentani.</h2><p className="mt-4 max-w-2xl text-sm leading-7 text-[#cbb5a5]">El catálogo se limita a lanzamientos compartidos por el propio equipo. Los créditos completos y enlaces oficiales se incorporarán solo tras validación de Duck.</p><div className="mt-9 grid gap-3 md:grid-cols-2 lg:grid-cols-4">{cases.map((project, index) => <div className="rounded-xl border border-[#563c33] bg-[#211613] p-5" key={project}><p className="text-xs font-bold text-[#e69763]">0{index + 1}</p><p className="mt-6 text-sm font-semibold leading-6">{project}</p></div>)}</div></div></section>
 
-        <section id="contacto" className="mx-auto grid max-w-7xl gap-10 px-5 py-24 lg:grid-cols-[.9fr_1.1fr] lg:px-8"><div><p className="text-xs font-bold tracking-[0.19em] text-[#e69763]">CONTACTO DIRECTO</p><h2 className="display-face mt-4 text-5xl font-semibold leading-none">Hablemos de la siguiente producción.</h2><p className="mt-5 max-w-md text-sm leading-7 text-[#cbb5a5]">Comparte el objetivo, formato y momento del proyecto. El mensaje se registra únicamente en el sistema de Duck.</p></div><Card className="border-[#6a483c] bg-[#251814] text-[#fff7ec]"><CardContent className="p-6 sm:p-8"><form className="grid gap-4" onSubmit={submit}><Input className="border-[#6a483c] bg-[#1a110e] text-white placeholder:text-[#927365]" name="name" placeholder="Tu nombre" required /><Input className="border-[#6a483c] bg-[#1a110e] text-white placeholder:text-[#927365]" name="email" type="email" placeholder="Email" required /><Input className="border-[#6a483c] bg-[#1a110e] text-white placeholder:text-[#927365]" name="service" placeholder="Servicio o tipo de proyecto" /><Textarea className="min-h-32 border-[#6a483c] bg-[#1a110e] text-white placeholder:text-[#927365]" name="message" placeholder="Cuéntale a Duck qué necesitas." required />{formError ? <p className="rounded-lg border border-red-400/40 bg-red-950/30 p-3 text-sm text-red-200" role="alert">{formError}</p> : null}<Button disabled={contact.isPending} className="rounded-full bg-[#e69763] text-[#2a1610] hover:bg-[#f1ad81]">{contact.isPending ? "Enviando…" : "Enviar mensaje"}</Button></form></CardContent></Card></section>
+        <section id="contacto" className="mx-auto grid max-w-7xl gap-10 px-5 py-24 lg:grid-cols-[.9fr_1.1fr] lg:px-8"><div><p className="text-xs font-bold tracking-[0.19em] text-[#e69763]">CONTACTO DIRECTO</p><h2 className="display-face mt-4 text-5xl font-semibold leading-none">Hablemos de la siguiente producción.</h2><p className="mt-5 max-w-md text-sm leading-7 text-[#cbb5a5]">Comparte el objetivo, formato y momento del proyecto. El mensaje se registra únicamente en el sistema de Duck.</p></div><Card className="border-[#6a483c] bg-[#251814] text-[#fff7ec]"><CardContent className="p-6 sm:p-8"><form ref={formRef} className="grid gap-4" onSubmit={submit} onInput={() => setFormSuccess(false)} aria-label="Solicitud de contacto" aria-busy={contact.isPending}>
+  <div className="grid gap-1.5">
+    <label htmlFor="duck-contact-name" className="text-sm font-medium">Nombre</label>
+    <Input id="duck-contact-name" className="border-[#6a483c] bg-[#1a110e] text-white placeholder:text-[#927365]" name="name" autoComplete="name" placeholder="Tu nombre" minLength={2} maxLength={180} required disabled={contact.isPending} />
+  </div>
+  <div className="grid gap-1.5">
+    <label htmlFor="duck-contact-email" className="text-sm font-medium">Correo electrónico</label>
+    <Input id="duck-contact-email" className="border-[#6a483c] bg-[#1a110e] text-white placeholder:text-[#927365]" name="email" autoComplete="email" type="email" placeholder="Email" required disabled={contact.isPending} />
+  </div>
+  <div className="grid gap-1.5">
+    <label htmlFor="duck-contact-service" className="text-sm font-medium">Servicio (opcional)</label>
+    <Input id="duck-contact-service" className="border-[#6a483c] bg-[#1a110e] text-white placeholder:text-[#927365]" name="service" maxLength={120} placeholder="Servicio o tipo de proyecto" disabled={contact.isPending} />
+  </div>
+  <div className="grid gap-1.5">
+    <label htmlFor="duck-contact-message" className="text-sm font-medium">Mensaje</label>
+    <Textarea id="duck-contact-message" className="min-h-32 border-[#6a483c] bg-[#1a110e] text-white placeholder:text-[#927365]" name="message" placeholder="Cuéntale a Duck qué necesitas." minLength={10} maxLength={5000} required disabled={contact.isPending} />
+  </div>
+  {formError ? <p className="rounded-lg border border-red-400/40 bg-red-950/30 p-3 text-sm text-red-200" role="alert">{formError}</p> : null}
+  {formSuccess ? <p className="rounded-lg border border-green-400/40 bg-green-950/30 p-3 text-sm text-green-100" role="status">Tu mensaje se ha registrado correctamente.</p> : null}
+  <Button type="submit" disabled={contact.isPending} className="rounded-full bg-[#e69763] text-[#2a1610] hover:bg-[#f1ad81]">{contact.isPending ? "Enviando…" : "Enviar mensaje"}</Button>
+</form></CardContent></Card></section>
       </main>
     </div>
   );

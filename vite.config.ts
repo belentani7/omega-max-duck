@@ -3,7 +3,7 @@ import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import fs from "node:fs";
 import path from "node:path";
-import { defineConfig, type Plugin, type ViteDevServer } from "vite";
+import { defineConfig, type Plugin, type PluginOption, type ViteDevServer } from "vite";
 import { vitePluginManusRuntime } from "vite-plugin-manus-runtime";
 
 // =============================================================================
@@ -12,6 +12,7 @@ import { vitePluginManusRuntime } from "vite-plugin-manus-runtime";
 // =============================================================================
 
 const PROJECT_ROOT = import.meta.dirname;
+const DEBUG_COLLECTOR_PATH = path.join(PROJECT_ROOT, "devtools", "debug-collector.js");
 const LOG_DIR = path.join(PROJECT_ROOT, ".manus-logs");
 const MAX_LOG_SIZE_BYTES = 1 * 1024 * 1024; // 1MB per log file
 const TRIM_TARGET_BYTES = Math.floor(MAX_LOG_SIZE_BYTES * 0.6); // Trim to 60% to avoid constant re-trimming
@@ -77,11 +78,9 @@ function writeToLogFile(source: LogSource, entries: unknown[]) {
 function vitePluginManusDebugCollector(): Plugin {
   return {
     name: "manus-debug-collector",
+    apply: "serve",
 
     transformIndexHtml(html) {
-      if (process.env.NODE_ENV === "production") {
-        return html;
-      }
       return {
         html,
         tags: [
@@ -98,6 +97,20 @@ function vitePluginManusDebugCollector(): Plugin {
     },
 
     configureServer(server: ViteDevServer) {
+      server.middlewares.use((req, res, next) => {
+        const pathname = new URL(req.url || "/", "http://localhost").pathname;
+        if (pathname !== "/__manus__/debug-collector.js") return next();
+        if (req.method !== "GET" && req.method !== "HEAD") {
+          res.writeHead(405).end();
+          return;
+        }
+        res.writeHead(200, {
+          "Content-Type": "text/javascript; charset=utf-8",
+          "Cache-Control": "no-store",
+        });
+        res.end(req.method === "HEAD" ? undefined : fs.readFileSync(DEBUG_COLLECTOR_PATH, "utf-8"));
+      });
+
       // POST /__manus__/logs: Browser sends logs (written directly to files)
       server.middlewares.use("/__manus__/logs", (req, res, next) => {
         if (req.method !== "POST") {
@@ -150,7 +163,10 @@ function vitePluginManusDebugCollector(): Plugin {
   };
 }
 
-const plugins = [react(), tailwindcss(), jsxLocPlugin(), vitePluginManusRuntime(), vitePluginManusDebugCollector()];
+const plugins: PluginOption[] = [react(), tailwindcss(), jsxLocPlugin(), vitePluginManusRuntime()];
+if (process.env.MANUS_DEBUG_COLLECTOR === "1") {
+  plugins.push(vitePluginManusDebugCollector());
+}
 
 export default defineConfig({
   plugins,
